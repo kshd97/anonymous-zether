@@ -15,9 +15,15 @@ contract("ZSC", async (accounts) => {
         await cash.mint(accounts[0], 1000);
         await cash.approve(zsc.contract._address, 1000);
         const balance = await cash.balanceOf.call(accounts[0]);
+        const balance1 = await cash.balanceOf.call(accounts[1]);
         assert.equal(
             balance,
             1000,
+            "Minting failed"
+        );
+        assert.equal(
+            balance1,
+            0,
             "Minting failed"
         );
     });
@@ -42,15 +48,22 @@ contract("ZSC", async (accounts) => {
         carol = new Client(web3, zsc.contract, accounts[0]);
         dave = new Client(web3, zsc.contract, accounts[0]);
         miner = new Client(web3, zsc.contract, accounts[0]);
-        await Promise.all([bob.register(), carol.register(), dave.register(), miner.register()]);
+        miner1 = new Client(web3, zsc.contract, accounts[0]);
+        await Promise.all([bob.register(), carol.register(), dave.register(), miner.register(), miner1.register()]);
         alice.friends.add("Bob", bob.account.public());
         alice.friends.add("Carol", carol.account.public());
         alice.friends.add("Dave", dave.account.public());
         alice.friends.add("Miner", miner.account.public());
-        await alice.transfer("Bob", 10, ["Carol", "Dave"], "Miner");
+        alice.friends.add("Miner1", miner1.account.public());
+        await alice.transfer_many({"Bob": 10, "Carol": 10}, ["Miner1", "Dave"], "Miner");
         await new Promise((resolve) => setTimeout(resolve, 100));
         assert.equal(
             bob.account.balance(),
+            10,
+            "Transfer failed"
+        );
+        assert.equal(
+            carol.account.balance(),
             10,
             "Transfer failed"
         );
@@ -64,7 +77,7 @@ contract("ZSC", async (accounts) => {
 
     it("should allow transferring (2 decoys and NO miner)", async () => {
         const zsc = await ZSC.deployed();
-        await alice.transfer("Bob", 10, ["Carol", "Dave"]);
+        await alice.transfer_many({"Bob": 10}, ["Carol", "Dave"]);
         await new Promise((resolve) => setTimeout(resolve, 100));
         assert.equal(
             bob.account.balance(),
@@ -79,11 +92,13 @@ contract("ZSC", async (accounts) => {
         carol1 = new Client(web3, zsc.contract, accounts[0]);
         dave1 = new Client(web3, zsc.contract, accounts[0]);
         miner1 = new Client(web3, zsc.contract, accounts[0]);
-        await Promise.all([bob1.register(), carol1.register(), dave1.register(), miner1.register()]);
+        miner2 = new Client(web3, zsc.contract, accounts[0]);
+        await Promise.all([bob1.register(), carol1.register(), dave1.register(), miner1.register(), miner2.register()]);
         alice.friends.add("Bob1", bob1.account.public());
         alice.friends.add("Carol1", carol1.account.public());
         alice.friends.add("Dave1", dave1.account.public());
         alice.friends.add("Miner1", miner1.account.public());
+        alice.friends.add("Miner2", miner2.account.public());
         await alice.transfer("Bob", 10, ["Carol", "Dave", "Bob1", "Carol1", "Dave1", "Miner1"], "Miner");
         await new Promise((resolve) => setTimeout(resolve, 100));
         assert.equal(

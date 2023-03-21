@@ -5,6 +5,7 @@ const utils = require('./utils/utils.js');
 const { ElGamal } = require('./utils/algebra.js');
 const Service = require('./utils/service.js');
 const bn128 = require('./utils/bn128.js');
+const { resolve } = require('path');
 
 const sleep = (wait) => new Promise((resolve) => { setTimeout(resolve, wait); });
 
@@ -183,7 +184,54 @@ class Client {
             });
         };
 
-        this.transfer = (name, value, decoys, beneficiary) => { // todo: make sure the beneficiary is registered.
+                // Define a recursive function to chain the Promises together
+        function chainPromises(index) {
+            if (index >= promises.length) {
+            // Base case: return the last Promise in the chain
+            return currentPromise;
+            } else {
+            // Recursive case: chain the next Promise to the current Promise
+            const nextPromise = promises[index];
+            currentPromise = currentPromise.then((previousValue) => {
+                console.log(previousValue); // Log the value of the previous Promise
+                return nextPromise; // Return the next Promise to start it
+            });
+            return chainPromises(index + 1);
+            }
+        }
+
+        this.transfer_many = async (dict, decoys, beneficiary) => {
+            // let promises = [];
+            // let previousPromise;
+
+            for (var name in dict) {
+                await this.transfer(name, dict[name], decoys, beneficiary);
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                // previousPromise.then((result) => {
+                //     console.log("Going to bed");
+                //     console.log(result);
+                // }, (result1)=>{
+                //     console.log("Failuressss");
+                //     console.log(result1);
+                // });
+                // previousPromise = previousPromise.then(() => {
+                //     return 
+                // });
+                // promises.push(previousPromise);
+            };
+            
+            // Promise.all(promises).then(() => {
+            //     console.log("All transfers complete");
+            // }).catch((error) => {
+            //     console.error(error);
+            // });
+        };
+
+        this.transfer = async (name, value, decoys, beneficiary) => { // todo: make sure the beneficiary is registered.
+            console.log("Paying "+name);
+            console.log("Paying "+value);
+            console.log("Not Paying "+decoys);
+            console.log("Beneficiaries "+ beneficiary);
             if (this.account.keypair === undefined)
                 throw "Client's account is not yet registered!";
             decoys = decoys ? decoys : [];
@@ -196,10 +244,13 @@ class Client {
             const plural = seconds === 1 ? "" : "s";
             if (value > state.available) {
                 console.log("Your transfer has been queued. Please wait " + seconds + " second" + plural + ", for the release of your funds...");
+                console.log("Busha bush");
                 return sleep(wait).then(() => this.transfer(name, value, decoys, beneficiary));
+
             }
             if (state.nonceUsed) {
                 console.log("Your transfer has been queued. Please wait " + seconds + " second" + plural + ", until the next epoch...");
+                console.log("Bushas121");
                 return sleep(wait).then(() => this.transfer(name, value, decoys, beneficiary));
             }
             const size = 2 + decoys.length;
@@ -207,6 +258,7 @@ class Client {
             if (estimated > epochLength * 1000)
                 throw "The anonset size (" + size + ") you've requested might take longer than the epoch length (" + epochLength + " seconds) to prove. Consider re-deploying, with an epoch length at least " + Math.ceil(estimate(size, true) / 1000) + " seconds.";
             if (estimated > wait) {
+                console.log("BASDHD");
                 console.log(wait < 3100 ? "Initiating transfer." : "Your transfer has been queued. Please wait " + seconds + " second" + plural + ", until the next epoch...");
                 return sleep(wait).then(() => this.transfer(name, value, decoys, beneficiary));
             }
@@ -225,11 +277,14 @@ class Client {
             if (account.keypair['y'].eq(friends[name]))
                 throw "Sending to yourself is currently unsupported (and useless!)."
             const y = [account.keypair['y'], friends[name]]; // not yet shuffled
+            // console.log(y);
             decoys.forEach((decoy) => {
                 if (!(decoy in friends))
                     throw "Decoy \"" + decoy + "\" is unknown in friends directory!";
                 y.push(friends[decoy]);
             });
+            console.log("Friends");
+            console.log(y);
             if (beneficiary !== undefined && !(beneficiary in friends))
                 throw "Beneficiary \"" + beneficiary + "\" is not known!";
             const index = [];
@@ -259,6 +314,7 @@ class Client {
                         const left = ElGamal.base['g'].mul(new BN(i === index[0] ? -value - fee : i === index[1] ? value : 0)).add(party.mul(r))
                         return new ElGamal(left, D)
                     });
+                    console.log(C);
                     const Cn = deserialized.map((account, i) => account.add(C[i]));
                     const proof = Service.proveTransfer(Cn, C, y, state.lastRollOver, account.keypair['x'], r, value, state.available - value - fee, index, fee);
                     const u = utils.u(state.lastRollOver, account.keypair['x']);
